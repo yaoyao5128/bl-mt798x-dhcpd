@@ -411,6 +411,20 @@ input[type="file"] {
     color: var(--text);
 }
 
+.sysinfo {
+    width: min(520px, 30%);
+    margin: 0 auto 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 18px;
+    text-align: left;
+    white-space: pre-line;
+}
+
 input[type="button"],
 button.button {
     appearance: none;

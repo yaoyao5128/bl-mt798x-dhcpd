@@ -16,6 +16,7 @@
 #include <net/mtk_httpd.h>
 #include <net/mtk_dhcpd.h>
 #include <u-boot/md5.h>
+#include <asm/global_data.h>
 #include <linux/kernel.h>
 #include <linux/stringify.h>
 #include <linux/ctype.h>
@@ -30,6 +31,8 @@
 #include <vsprintf.h>
 #include <version_string.h>
 #include <failsafe/fw_type.h>
+
+DECLARE_GLOBAL_DATA_PTR;
 
 int __weak failsafe_validate_image(const void *data, size_t size, failsafe_fw_t fw)
 {
@@ -111,6 +114,146 @@ static void version_handler(enum httpd_uri_handler_status status,
 struct reboot_session {
 	int dummy;
 };
+
+static size_t json_escape(char *dst, size_t dst_sz, const char *src)
+{
+	size_t di = 0;
+	const unsigned char *s = (const unsigned char *)src;
+
+	if (!dst || !dst_sz)
+		return 0;
+
+	if (!src)
+	{
+		dst[0] = '\0';
+		return 0;
+	}
+
+	while (*s && di + 2 < dst_sz)
+	{
+		unsigned char c = *s++;
+
+		if (c == '"' || c == '\\')
+		{
+			if (di + 2 >= dst_sz)
+				break;
+			dst[di++] = '\\';
+			dst[di++] = (char)c;
+			continue;
+		}
+
+		if (c < 0x20)
+		{
+			/* skip control chars */
+			dst[di++] = ' ';
+			continue;
+		}
+
+		dst[di++] = (char)c;
+	}
+
+	dst[di] = '\0';
+	return di;
+}
+
+static void sysinfo_handler(enum httpd_uri_handler_status status,
+							struct httpd_request *request,
+							struct httpd_response *response)
+{
+	char *buf;
+	int len = 0;
+	int left = 4096;
+	off_t ram_size = 0;
+	ofnode root, cpus, cpu;
+	const char *board_model = NULL;
+	const char *board_compat = NULL;
+	const char *cpu_compat = NULL;
+	u64 cpu_clk_hz = 0;
+	char esc_board_model[256], esc_board_compat[256], esc_cpu_compat[256];
+
+	(void)request;
+
+	if (status == HTTP_CB_CLOSED)
+	{
+		free(response->session_data);
+		return;
+	}
+
+	if (status != HTTP_CB_NEW)
+		return;
+
+	buf = malloc(left);
+	if (!buf)
+	{
+		response->status = HTTP_RESP_STD;
+		response->data = "{}";
+		response->size = strlen(response->data);
+		response->info.code = 500;
+		response->info.connection_close = 1;
+		response->info.content_type = "application/json";
+		return;
+	}
+
+	root = ofnode_path("/");
+	if (ofnode_valid(root))
+	{
+		board_model = ofnode_read_string(root, "model");
+		board_compat = ofnode_read_string(root, "compatible");
+	}
+
+	if (!board_model || !board_model[0])
+	{
+		board_model = env_get("model");
+		if (!board_model || !board_model[0])
+			board_model = env_get("board_name");
+		if (!board_model || !board_model[0])
+			board_model = env_get("board");
+	}
+
+	/* CPU info from DT: /cpus/<first cpu node>/compatible, clock-frequency */
+	cpus = ofnode_path("/cpus");
+	if (ofnode_valid(cpus) && ofnode_get_child_count(cpus))
+	{
+		ofnode_for_each_subnode(cpu, cpus)
+		{
+			cpu_compat = ofnode_read_string(cpu, "compatible");
+			if (!ofnode_read_u64(cpu, "clock-frequency", &cpu_clk_hz) && cpu_clk_hz)
+				break;
+			if (cpu_compat && cpu_compat[0])
+				break;
+		}
+	}
+
+	/* RAM size from global data */
+	if (gd)
+		ram_size = (off_t)gd->ram_size;
+
+	json_escape(esc_board_model, sizeof(esc_board_model), board_model ? board_model : "");
+	json_escape(esc_board_compat, sizeof(esc_board_compat), board_compat ? board_compat : "");
+	json_escape(esc_cpu_compat, sizeof(esc_cpu_compat), cpu_compat ? cpu_compat : "");
+
+	len += snprintf(buf + len, left - len, "{");
+	len += snprintf(buf + len, left - len,
+					"\"board\":{\"model\":\"%s\",\"compatible\":\"%s\"},",
+					esc_board_model, esc_board_compat);
+	len += snprintf(buf + len, left - len,
+					"\"cpu\":{\"compatible\":\"%s\",\"clock_hz\":%llu},",
+					esc_cpu_compat, (unsigned long long)cpu_clk_hz);
+	len += snprintf(buf + len, left - len,
+					"\"ram\":{\"size\":%llu}",
+					(unsigned long long)ram_size);
+	len += snprintf(buf + len, left - len, "}");
+
+	response->status = HTTP_RESP_STD;
+	response->data = buf;
+	response->size = strlen(buf);
+	response->info.code = 200;
+	response->info.connection_close = 1;
+	response->info.content_type = "application/json";
+
+	/* response data must stay valid until sent */
+	response->session_data = buf;
+}
 
 static void reboot_handler(enum httpd_uri_handler_status status,
 			   struct httpd_request *request,
@@ -389,8 +532,8 @@ static void backupinfo_handler(enum httpd_uri_handler_status status,
 
 		if (present) {
 			len += snprintf(buf + len, left - len,
-				"\"present\":true,\"vendor\":\"%s\",\"product\":\"%s\",\"blksz\":%u,\"size\":%llu,",
-				bd->vendor, bd->product, bd->blksz,
+				"\"present\":true,\"vendor\":\"%s\",\"product\":\"%s\",\"blksz\":%lu,\"size\":%llu,",
+				bd->vendor, bd->product, (unsigned long)bd->blksz,
 				(unsigned long long)mmc->capacity_user);
 		} else {
 			len += snprintf(buf + len, left - len, "\"present\":false,");
@@ -713,9 +856,9 @@ static void backup_handler(enum httpd_uri_handler_status status,
 		to_read = (size_t)min_t(u64, remain, st->buf_size);
 
 		if (st->src == BACKUP_SRC_MTD) {
+#ifdef CONFIG_MTD
 			size_t readsz = 0;
 
-#ifdef CONFIG_MTD
 			ret = mtd_read_skip_bad(st->mtd, st->start + st->cur,
 					to_read,
 					st->mtd->size - (st->start + st->cur),
@@ -1134,6 +1277,7 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/backup.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/backupinfo", &backupinfo_handler, NULL);
 	httpd_register_uri_handler(inst, "/backup", &backup_handler, NULL);
+	httpd_register_uri_handler(inst, "/sysinfo", &sysinfo_handler, NULL);
 	httpd_register_uri_handler(inst, "/factory.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/fail.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/flashing.html", &html_handler, NULL);

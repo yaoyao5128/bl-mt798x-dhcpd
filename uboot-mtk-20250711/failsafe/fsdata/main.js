@@ -38,6 +38,7 @@ function setLang(n) {
     } catch (t) { }
     applyI18n(document);
     typeof backupRefreshI18n == "function" && APP_STATE.page === "backup" && backupRefreshI18n();
+    typeof renderSysInfo == "function" && renderSysInfo();
     updateDocumentTitle()
 }
 
@@ -76,9 +77,9 @@ function ensureSidebar() {
     var i = document.getElementById("sidebar"),
         f, k, s, h, c, d, r, l, g, n, a, v, y, p, e, w, u, b;
     i && i.getAttribute("data-rendered") !== "1" && (i.setAttribute("data-rendered", "1"), f = location && location.pathname ? location.pathname : "", f === "" && (f = "/"), i.innerHTML = "", k = document.createElement("div"), k.className = "sidebar-brand", s = document.createElement("div"), s.className = "title", s.setAttribute("data-i18n", "app.name"), s.textContent = t("app.name"), k.appendChild(s), i.appendChild(k), h = document.createElement("div"), h.className = "sidebar-controls", c = document.createElement("div"), c.className = "control-row", d = document.createElement("div"), d.setAttribute("data-i18n", "control.language"), d.textContent = t("control.language"), c.appendChild(d), r = document.createElement("select"), r.id = "lang_select", r.innerHTML = '<option value="en">English<\/option><option value="zh-cn">简体中文<\/option>', r.value = APP_STATE.lang, r.onchange = function () {
-        setLang(r.value)
+        setLang(this.value)
     }, c.appendChild(r), h.appendChild(c), l = document.createElement("div"), l.className = "control-row", g = document.createElement("div"), g.setAttribute("data-i18n", "control.theme"), g.textContent = t("control.theme"), l.appendChild(g), n = document.createElement("select"), n.id = "theme_select", a = document.createElement("option"), a.value = "auto", a.setAttribute("data-i18n", "theme.auto"), a.textContent = t("theme.auto"), v = document.createElement("option"), v.value = "light", v.setAttribute("data-i18n", "theme.light"), v.textContent = t("theme.light"), y = document.createElement("option"), y.value = "dark", y.setAttribute("data-i18n", "theme.dark"), y.textContent = t("theme.dark"), n.appendChild(a), n.appendChild(v), n.appendChild(y), n.value = APP_STATE.theme, n.onchange = function () {
-        setTheme(n.value)
+        setTheme(this.value)
     }, l.appendChild(n), h.appendChild(l), i.appendChild(h), p = document.createElement("div"), p.className = "nav", e = document.createElement("div"), e.className = "nav-section", w = document.createElement("div"), w.className = "nav-section-title", w.setAttribute("data-i18n", "nav.basic"), w.textContent = t("nav.basic"), e.appendChild(w), e.appendChild(o("/", "nav.firmware", "firmware")), e.appendChild(o("/uboot.html", "nav.uboot", "uboot")), p.appendChild(e), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.advanced"), b.textContent = t("nav.advanced"), u.appendChild(b), u.appendChild(o("/bl2.html", "nav.bl2", "bl2")), u.appendChild(o("/gpt.html", "nav.gpt", "gpt")), u.appendChild(o("/factory.html", "nav.factory", "factory")), u.appendChild(o("/initramfs.html", "nav.initramfs", "initramfs")), p.appendChild(u), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.system"), b.textContent = t("nav.system"), u.appendChild(b), u.appendChild(o("/backup.html", "nav.backup", "backup")), r = o("/reboot.html", "nav.reboot", "reboot"), r.onclick = function () {
         return confirm(t("reboot.confirm"))
     }, u.appendChild(r), p.appendChild(u), i.appendChild(p), applyI18n(i))
@@ -114,8 +115,101 @@ function appInit(n) {
         document.body.classList.add("ready")
     }, 0);
     getversion();
+    // Fetch system info and storage/partition info for display
+    getSysInfo();
+    // getStorageInfoForSysinfo();
+    // getCurrentMtdLayout();
     (n === "index" || n === "initramfs") && getmtdlayoutlist();
     n === "backup" && backupInit()
+}
+
+function renderSysInfo() {
+    var n = document.getElementById("sysinfo"), i, r, u, f, e;
+    if (!n) return;
+    i = APP_STATE.sysinfo;
+    if (!i) {
+        n.textContent = t("sysinfo.loading");
+        return
+    }
+    u = i.board || {};
+    f = i.ram || {};
+    e = [];
+    e.push(t("sysinfo.board") + " " + (u.model || t("sysinfo.unknown")));
+    f.size !== undefined && f.size !== null && f.size !== 0 ? e.push(t("sysinfo.ram") + " " + bytesToHuman(f.size)) : e.push(t("sysinfo.ram") + " " + t("sysinfo.unknown"));
+
+    n.textContent = e.join("\n")
+}
+
+function getSysInfo() {
+    // Always fetch sysinfo into APP_STATE (used by features like backup filename),
+    // but only render when the sysinfo element exists on current page.
+    var n = document.getElementById("sysinfo");
+    n && renderSysInfo();
+    ajax({
+        url: "/sysinfo",
+        done: function (txt) {
+            try {
+                APP_STATE.sysinfo = JSON.parse(txt)
+            } catch (t) {
+                return
+            }
+            n && renderSysInfo()
+        }
+    })
+}
+
+async function ensureSysInfoLoaded() {
+    // On pages without #sysinfo (e.g. backup.html), we still need board model.
+    if (APP_STATE.sysinfo && APP_STATE.sysinfo.board && APP_STATE.sysinfo.board.model)
+        return APP_STATE.sysinfo;
+
+    if (APP_STATE._sysinfo_promise)
+        return await APP_STATE._sysinfo_promise;
+
+    APP_STATE._sysinfo_promise = (async function () {
+        try {
+            var r = await fetch("/sysinfo", { method: "GET" });
+            if (!r || !r.ok) return null;
+            var j = await r.json();
+            j && (APP_STATE.sysinfo = j);
+            return j;
+        } catch (e) {
+            return null;
+        } finally {
+            // allow retry later
+            APP_STATE._sysinfo_promise = null;
+        }
+    })();
+
+    return await APP_STATE._sysinfo_promise;
+}
+
+function getStorageInfoForSysinfo() {
+    // Pull /backupinfo to render current partition table in the sysinfo box
+    ajax({
+        url: "/backupinfo",
+        done: function (txt) {
+            try {
+                APP_STATE.backupinfo = JSON.parse(txt);
+            } catch (e) { return; }
+            renderSysInfo();
+        }
+    });
+}
+
+function getCurrentMtdLayout() {
+    // Get current mtd layout label if multi-layout is enabled
+    ajax({
+        url: "/getmtdlayout",
+        done: function (resp) {
+            if (!resp || resp === "error") return;
+            var parts = resp.split(";");
+            if (parts.length > 0 && parts[0]) {
+                APP_STATE.mtd_layout_current = parts[0];
+                renderSysInfo();
+            }
+        }
+    });
 }
 
 function startup() {
@@ -175,6 +269,36 @@ function bytesToHuman(n) {
 function parseFilenameFromDisposition(n) {
     var t, i;
     return n ? (t = /filename\s*=\s*"([^"]+)"/i.exec(n), t && t[1]) ? t[1] : (i = /filename\s*=\s*([^;\s]+)/i.exec(n), i && i[1] ? i[1].replace(/^"|"$/g, "") : "") : ""
+}
+
+function sanitizeFilenameComponent(n) {
+    return n ? String(n).replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) : ""
+}
+
+function getNowYYYYMMDD() {
+    var n = new Date, t = n.getFullYear(), i = n.getMonth() + 1, r = n.getDate();
+    return String(t) + String(i).padStart(2, "0") + String(r).padStart(2, "0")
+}
+
+function makeBackupDownloadName(n) {
+    var u = (APP_STATE.sysinfo && APP_STATE.sysinfo.board && APP_STATE.sysinfo.board.model) ? APP_STATE.sysinfo.board.model : "";
+    var t = sanitizeFilenameComponent(u) || "board";
+    var i = getNowYYYYMMDD();
+    var r = String(n || "backup.bin");
+
+    // Ensure it starts with backup_
+    r.indexOf("backup_") === 0 || (r = "backup_" + r.replace(/^_+/, ""));
+
+    // Insert board right after backup_ if not already
+    r.indexOf("backup_" + t + "_") === 0 || (r = r.replace(/^backup_/, "backup_" + t + "_"));
+
+    // Ensure .bin extension
+    /\.[A-Za-z0-9]+$/.test(r) || (r = r + ".bin");
+
+    // Append date before extension if not already present
+    /_\d{8}\.[A-Za-z0-9]+$/.test(r) || (r = r.replace(/(\.[A-Za-z0-9]+)$/, "_" + i + "$1"));
+
+    return r
 }
 
 function parseUserLen(n) {
@@ -332,6 +456,9 @@ async function startBackup() {
         l = c ? parseInt(c, 10) : 0;
         a = parseFilenameFromDisposition(h.headers.get("Content-Disposition"));
         a || (a = "backup.bin");
+        // Ensure we have board info for filename even on pages without #sysinfo
+        await ensureSysInfoLoaded();
+        a = makeBackupDownloadName(a);
         v = 0;
         if (window.showSaveFilePicker) {
             y = await window.showSaveFilePicker({ suggestedName: a, types: [{ description: "Binary", accept: { "application/octet-stream": [".bin"] } }] });
@@ -463,6 +590,15 @@ var I18N = {
         "backup.error.bad_range": "Please input valid start/end",
         "backup.error.http": "HTTP error:",
         "backup.error.exception": "Failed:",
+        "sysinfo.loading": "Loading system info...",
+        "sysinfo.unknown": "unknown",
+        "sysinfo.cpu": "CPU:",
+        "sysinfo.board": "Board:",
+        "sysinfo.ram": "RAM:",
+        "sysinfo.freq": "CPU Freq:",
+        "sysinfo.partitions": "Partitions:",
+        "sysinfo.current_layout": "Current layout:",
+        "sysinfo.none": "none",
         "initramfs.title": "LOAD INITRAMFS",
         "initramfs.hint": "You are going to load <strong>initramfs<\/strong> on the device.<br>Please, choose file from your local hard drive and click <strong>Upload<\/strong> button.",
         "initramfs.boot_hint": 'If all information above is correct, click "Boot".',
@@ -569,6 +705,15 @@ var I18N = {
         "backup.error.bad_range": "请输入有效的起始/结束",
         "backup.error.http": "HTTP 错误：",
         "backup.error.exception": "失败：",
+        "sysinfo.loading": "正在获取系统信息…",
+        "sysinfo.unknown": "未知",
+        "sysinfo.cpu": "处理器：",
+        "sysinfo.board": "板卡：",
+        "sysinfo.ram": "内存：",
+        "sysinfo.freq": "CPU 频率：",
+        "sysinfo.partitions": "分区表：",
+        "sysinfo.current_layout": "当前布局：",
+        "sysinfo.none": "无",
         "initramfs.title": "启动 Initramfs",
         "initramfs.hint": "你将要在设备上加载 <strong>initramfs<\/strong>。<br>请选择本地文件并点击 <strong>上传<\/strong> 按钮。",
         "initramfs.boot_hint": "如果以上信息确认无误，请点击“启动”。",
