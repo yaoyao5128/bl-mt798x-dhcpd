@@ -80,7 +80,7 @@ function ensureSidebar() {
         setLang(this.value)
     }, c.appendChild(r), h.appendChild(c), l = document.createElement("div"), l.className = "control-row", g = document.createElement("div"), g.setAttribute("data-i18n", "control.theme"), g.textContent = t("control.theme"), l.appendChild(g), n = document.createElement("select"), n.id = "theme_select", a = document.createElement("option"), a.value = "auto", a.setAttribute("data-i18n", "theme.auto"), a.textContent = t("theme.auto"), v = document.createElement("option"), v.value = "light", v.setAttribute("data-i18n", "theme.light"), v.textContent = t("theme.light"), y = document.createElement("option"), y.value = "dark", y.setAttribute("data-i18n", "theme.dark"), y.textContent = t("theme.dark"), n.appendChild(a), n.appendChild(v), n.appendChild(y), n.value = APP_STATE.theme, n.onchange = function () {
         setTheme(this.value)
-    }, l.appendChild(n), h.appendChild(l), i.appendChild(h), p = document.createElement("div"), p.className = "nav", e = document.createElement("div"), e.className = "nav-section", w = document.createElement("div"), w.className = "nav-section-title", w.setAttribute("data-i18n", "nav.basic"), w.textContent = t("nav.basic"), e.appendChild(w), e.appendChild(o("/", "nav.firmware", "firmware")), e.appendChild(o("/uboot.html", "nav.uboot", "uboot")), p.appendChild(e), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.advanced"), b.textContent = t("nav.advanced"), u.appendChild(b), u.appendChild(o("/bl2.html", "nav.bl2", "bl2")), u.appendChild(o("/gpt.html", "nav.gpt", "gpt")), u.appendChild(o("/factory.html", "nav.factory", "factory")), u.appendChild(o("/initramfs.html", "nav.initramfs", "initramfs")), p.appendChild(u), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.system"), b.textContent = t("nav.system"), u.appendChild(b), u.appendChild(o("/backup.html", "nav.backup", "backup")), r = o("/reboot.html", "nav.reboot", "reboot"), r.onclick = function () {
+    }, l.appendChild(n), h.appendChild(l), i.appendChild(h), p = document.createElement("div"), p.className = "nav", e = document.createElement("div"), e.className = "nav-section", w = document.createElement("div"), w.className = "nav-section-title", w.setAttribute("data-i18n", "nav.basic"), w.textContent = t("nav.basic"), e.appendChild(w), e.appendChild(o("/", "nav.firmware", "firmware")), e.appendChild(o("/uboot.html", "nav.uboot", "uboot")), p.appendChild(e), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.advanced"), b.textContent = t("nav.advanced"), u.appendChild(b), u.appendChild(o("/bl2.html", "nav.bl2", "bl2")), u.appendChild(o("/gpt.html", "nav.gpt", "gpt")), u.appendChild(o("/factory.html", "nav.factory", "factory")), u.appendChild(o("/initramfs.html", "nav.initramfs", "initramfs")), p.appendChild(u), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.system"), b.textContent = t("nav.system"), u.appendChild(b), u.appendChild(o("/backup.html", "nav.backup", "backup")), u.appendChild(o("/console.html", "nav.console", "console")), r = o("/reboot.html", "nav.reboot", "reboot"), r.onclick = function () {
         return confirm(t("reboot.confirm"))
     }, u.appendChild(r), p.appendChild(u), i.appendChild(p), applyI18n(i))
 }
@@ -99,6 +99,155 @@ function ajax(n) {
     n.data && (i = "POST");
     t.open(i, n.url);
     t.send(n.data)
+}
+
+function consoleInit() {
+    var out = document.getElementById("console_out");
+    var cmd = document.getElementById("console_cmd");
+    var status = document.getElementById("console_status");
+    var token = document.getElementById("console_token");
+
+    APP_STATE.console = APP_STATE.console || {
+        running: false,
+        pollTimer: null,
+        history: [],
+        histPos: -1,
+        tokenKey: "failsafe_console_token"
+    };
+
+    function loadToken() {
+        try {
+            var t = localStorage.getItem(APP_STATE.console.tokenKey);
+            token && t && (token.value = t);
+        } catch (e) { }
+    }
+
+    function saveToken() {
+        try {
+            token && localStorage.setItem(APP_STATE.console.tokenKey, token.value || "");
+        } catch (e) { }
+    }
+
+    function setStatus(t) {
+        status && (status.textContent = t || "");
+    }
+
+    function appendText(t) {
+        if (!out) return;
+        if (!t) return;
+        out.textContent += t;
+        out.scrollTop = out.scrollHeight;
+    }
+
+    async function pollOnce() {
+        if (!APP_STATE.console.running) return;
+        try {
+            var fd = new FormData();
+            if (token && token.value) fd.append("token", token.value);
+            var r = await fetch("/console/poll", { method: "POST", body: fd });
+            if (!r.ok) {
+                setStatus(t("console.status.http") + " " + r.status);
+                return;
+            }
+            var txt = await r.text();
+            var j;
+            try {
+                j = JSON.parse(txt);
+            } catch (e) {
+                setStatus(t("console.status.parse"));
+                return;
+            }
+            j && j.data && appendText(j.data);
+        } catch (e) {
+            setStatus(t("console.status.error") + " " + (e && e.message ? e.message : String(e)));
+        }
+    }
+
+    function schedulePoll() {
+        APP_STATE.console.pollTimer && clearTimeout(APP_STATE.console.pollTimer);
+        APP_STATE.console.pollTimer = setTimeout(async function () {
+            await pollOnce();
+            schedulePoll();
+        }, 300);
+    }
+
+    window.consoleSend = async function () {
+        if (!cmd || !cmd.value) return;
+        saveToken();
+        var line = String(cmd.value);
+        cmd.value = "";
+        APP_STATE.console.history.unshift(line);
+        APP_STATE.console.history.length > 50 && (APP_STATE.console.history.length = 50);
+        APP_STATE.console.histPos = -1;
+
+        try {
+            var fd = new FormData();
+            fd.append("cmd", line);
+            if (token && token.value) fd.append("token", token.value);
+            setStatus(t("console.status.running"));
+            var r = await fetch("/console/exec", { method: "POST", body: fd });
+            var txt = await r.text();
+            if (!r.ok) {
+                setStatus(t("console.status.http") + " " + r.status + (txt ? ": " + txt : ""));
+                return;
+            }
+            try {
+                var j = JSON.parse(txt);
+                setStatus(t("console.status.ret") + " " + (j && typeof j.ret !== "undefined" ? j.ret : "?"));
+            } catch (e) {
+                setStatus(t("console.status.done"));
+            }
+        } catch (e) {
+            setStatus(t("console.status.error") + " " + (e && e.message ? e.message : String(e)));
+        }
+    };
+
+    window.consoleClear = async function () {
+        saveToken();
+        try {
+            var fd = new FormData();
+            if (token && token.value) fd.append("token", token.value);
+            var r = await fetch("/console/clear", { method: "POST", body: fd });
+            if (r.ok) {
+                out && (out.textContent = "");
+                setStatus(t("console.status.cleared"));
+            } else {
+                setStatus(t("console.status.http") + " " + r.status);
+            }
+        } catch (e) {
+            setStatus(t("console.status.error") + " " + (e && e.message ? e.message : String(e)));
+        }
+    };
+
+    if (cmd) {
+        cmd.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                window.consoleSend();
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                var h = APP_STATE.console.history;
+                if (!h || !h.length) return;
+                APP_STATE.console.histPos = Math.min(h.length - 1, APP_STATE.console.histPos + 1);
+                cmd.value = h[APP_STATE.console.histPos] || "";
+                e.preventDefault();
+                return;
+            }
+            if (e.key === "ArrowDown") {
+                var h2 = APP_STATE.console.history;
+                if (!h2 || !h2.length) return;
+                APP_STATE.console.histPos = Math.max(-1, APP_STATE.console.histPos - 1);
+                cmd.value = APP_STATE.console.histPos >= 0 ? (h2[APP_STATE.console.histPos] || "") : "";
+                e.preventDefault();
+            }
+        });
+    }
+
+    APP_STATE.console.running = true;
+    loadToken();
+    setStatus(t("console.status.ready"));
+    schedulePoll();
 }
 
 function appInit(n) {
@@ -120,7 +269,8 @@ function appInit(n) {
     getStorageInfoForSysinfo();
     // getCurrentMtdLayout();
     (n === "index" || n === "initramfs") && getmtdlayoutlist();
-    n === "backup" && backupInit()
+    n === "backup" && backupInit();
+    n === "console" && consoleInit()
 }
 
 function updateGptNavVisibility() {
@@ -533,6 +683,7 @@ var I18N = {
         "nav.initramfs": "Load initramfs",
         "nav.system": "System",
         "nav.backup": "Backup",
+        "nav.console": "Web console",
         "nav.reboot": "Reboot",
         "control.language": "🌐Language",
         "control.theme": "🌓Theme",
@@ -617,6 +768,23 @@ var I18N = {
         "sysinfo.partitions": "Partitions:",
         "sysinfo.current_layout": "Current layout:",
         "sysinfo.none": "none",
+        "console.title": "WEB CONSOLE",
+        "console.hint": "Run <strong>U-Boot commands<\/strong> directly in your browser.<br>Output is streamed by polling (no WebSocket). Treat this as <strong>root access<\/strong>.",
+        "console.send": "Send",
+        "console.clear": "Clear",
+        "console.warn.1": "This console can execute arbitrary U-Boot commands.",
+        "console.warn.2": "Do not expose this page on untrusted networks.",
+        "console.warn.3": "If you set env failsafe_console_token, enter it above to unlock.",
+        "console.status.ready": "Ready.",
+        "console.status.running": "Running...",
+        "console.status.done": "Done.",
+        "console.status.cleared": "Cleared.",
+        "console.status.ret": "Return:",
+        "console.status.http": "HTTP error:",
+        "console.status.parse": "Parse error.",
+        "console.status.error": "Error:",
+        "console.placeholder.token": "token (optional)",
+        "console.placeholder.cmd": "help; printenv; mtd list",
         "initramfs.title": "LOAD INITRAMFS",
         "initramfs.hint": "You are going to load <strong>initramfs<\/strong> on the device.<br>Please, choose file from your local hard drive and click <strong>Upload<\/strong> button.",
         "initramfs.boot_hint": 'If all information above is correct, click "Boot".',
@@ -648,6 +816,7 @@ var I18N = {
         "nav.initramfs": "加载 Initramfs",
         "nav.system": "系统",
         "nav.backup": "备份",
+        "nav.console": "网页终端",
         "nav.reboot": "重启",
         "control.language": "🌐语言",
         "control.theme": "🌓主题",
@@ -732,6 +901,23 @@ var I18N = {
         "sysinfo.partitions": "分区表：",
         "sysinfo.current_layout": "当前布局：",
         "sysinfo.none": "无",
+        "console.title": "网页终端",
+        "console.hint": "在浏览器中直接执行 <strong>U-Boot 命令<\/strong>。<br>输出通过轮询方式获取（非 WebSocket），相当于 <strong>root 权限<\/strong>。",
+        "console.send": "发送",
+        "console.clear": "清空",
+        "console.warn.1": "该终端可执行任意 U-Boot 命令。",
+        "console.warn.2": "不要在不可信网络中暴露此页面。",
+        "console.warn.3": "如设置了环境变量 failsafe_console_token，请在上方输入以解锁。",
+        "console.status.ready": "就绪。",
+        "console.status.running": "执行中...",
+        "console.status.done": "完成。",
+        "console.status.cleared": "已清空。",
+        "console.status.ret": "返回值：",
+        "console.status.http": "HTTP 错误：",
+        "console.status.parse": "解析失败。",
+        "console.status.error": "错误：",
+        "console.placeholder.token": "token（可选）",
+        "console.placeholder.cmd": "help; printenv; mtd list",
         "initramfs.title": "启动 Initramfs",
         "initramfs.hint": "你将要在设备上加载 <strong>initramfs<\/strong>。<br>请选择本地文件并点击 <strong>上传<\/strong> 按钮。",
         "initramfs.boot_hint": "如果以上信息确认无误，请点击“启动”。",

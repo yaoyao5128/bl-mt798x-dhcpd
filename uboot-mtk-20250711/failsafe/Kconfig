@@ -9,3 +9,17 @@ config WEBUI_FAILSAFE
 	default n
 	help
 	  Enable Web based failsafe UI
+
+config WEBUI_FAILSAFE_CONSOLE
+	bool "Enable failsafe Web console (DANGEROUS)"
+	select CONSOLE_RECORD
+	default y
+	help
+	  Enable a simple web console (web terminal) in the failsafe Web UI.
+	  This allows running U-Boot commands from a browser without TTL.
+
+	  WARNING: This is effectively remote code execution (RCE) over the network.
+	  Do NOT enable on untrusted networks.
+
+	  Optional hardening:
+	  - Set env var 'failsafe_console_token' to require a token in requests.

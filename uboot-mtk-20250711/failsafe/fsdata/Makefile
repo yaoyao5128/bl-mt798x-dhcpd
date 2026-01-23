@@ -53,6 +53,10 @@ obj-y += reboot.o
 FILE_reboot.o := reboot.html
 FSPATH_reboot.o := reboot.html
 
+obj-$(CONFIG_WEBUI_FAILSAFE_CONSOLE) += console.o
+FILE_console.o := console.html
+FSPATH_console.o := console.html
+
 obj-y += style.o
 FILE_style.o := style.css
 FSPATH_style.o := style.css
