@@ -438,6 +438,7 @@ button.button {
     cursor: pointer;
     transition: transform var(--anim), filter var(--anim), box-shadow var(--anim);
     box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+    margin: 6px;
 }
 
 input[type="button"]:hover,
@@ -573,7 +574,7 @@ ul {
 }
 
 .console-output {
-    height: 360px;
+    height: 300px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;

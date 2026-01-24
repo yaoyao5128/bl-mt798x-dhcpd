@@ -21,6 +21,10 @@ obj-y += backup.o
 FILE_backup.o := backup.html
 FSPATH_backup.o := backup.html
 
+obj-y += env.o
+FILE_env.o := env.html
+FSPATH_env.o := env.html
+
 obj-y += factory.o
 FILE_factory.o := factory.html
 FSPATH_factory.o := factory.html
