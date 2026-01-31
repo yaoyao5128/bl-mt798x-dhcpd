@@ -166,12 +166,20 @@ jobs:
         cd bl-mt798x-dhcpd
         mkdir -p model_lists
 
+        FIP_INPUT="${{ github.event.inputs.FIP_VERSION }}"
+        SOC_FILTER=""
+        if [[ "$FIP_INPUT" =~ ^(.+)-(mt798[0-9]+)$ ]]; then
+          FIP_INPUT="${BASH_REMATCH[1]}"
+          SOC_FILTER="${BASH_REMATCH[2]}"
+          echo "检测到平台限定：$SOC_FILTER（将仅生成该平台机型列表）"
+        fi
+
         # 解析需要编译的版本列表
-        if [ "${{ github.event.inputs.FIP_VERSION }}" = "all" ]; then
+        if [ "$FIP_INPUT" = "all" ]; then
           SUPPORTED_VERSIONS=("2022" "2023" "2024" "2025")
           echo "检测到 all，将解析：${SUPPORTED_VERSIONS[*]}"
         else
-          IFS=',' read -ra SUPPORTED_VERSIONS <<< "${{ github.event.inputs.FIP_VERSION }}"
+          IFS=',' read -ra SUPPORTED_VERSIONS <<< "$FIP_INPUT"
           echo "将按选择解析：${SUPPORTED_VERSIONS[*]}"
         fi
 
@@ -233,6 +241,13 @@ jobs:
           if [ -z "$models" ]; then
             echo "未找到可用机型（$version）：缺少 ATF/UBoot defconfig 交集，跳过"
             continue
+          fi
+          if [ -n "$SOC_FILTER" ]; then
+            models=$(echo "$models" | grep -E "^${SOC_FILTER}_" || true)
+            if [ -z "$models" ]; then
+              echo "平台 $SOC_FILTER 在 $version 版本无可用机型，跳过"
+              continue
+            fi
           fi
           list_file="model_lists/model_list_${version}.txt"
           echo "$models" | sort -u > "$list_file"
@@ -340,16 +355,31 @@ jobs:
           echo "未启用 MULTI_LAYOUT"
         fi
         
+        FIP_INPUT="${{ github.event.inputs.FIP_VERSION }}"
+        SOC_FILTER=""
+        if [[ "$FIP_INPUT" =~ ^(.+)-(mt798[0-9]+)$ ]]; then
+          FIP_INPUT="${BASH_REMATCH[1]}"
+          SOC_FILTER="${BASH_REMATCH[2]}"
+          echo "检测到平台限定：$SOC_FILTER（将仅编译该平台机型）"
+        fi
+
         # 解析需要编译的版本列表
-        if [ "${{ github.event.inputs.FIP_VERSION }}" = "all" ]; then
+        if [ "$FIP_INPUT" = "all" ]; then
           SUPPORTED_VERSIONS=("2022" "2023" "2024" "2025")
           echo "检测到 all，将编译：${SUPPORTED_VERSIONS[*]}"
         else
-          IFS=',' read -ra SUPPORTED_VERSIONS <<< "${{ github.event.inputs.FIP_VERSION }}"
+          IFS=',' read -ra SUPPORTED_VERSIONS <<< "$FIP_INPUT"
           echo "将按选择编译：${SUPPORTED_VERSIONS[*]}"
         fi
 
         MODEL_INPUT="${{ github.event.inputs.MODEL }}"
+        if [[ "$MODEL_INPUT" =~ ^all-(mt798[0-9]+)$ ]]; then
+          MODEL_INPUT="all"
+          if [ -z "$SOC_FILTER" ]; then
+            SOC_FILTER="${BASH_REMATCH[1]}"
+          fi
+          echo "检测到机型输入包含平台限定：$SOC_FILTER（MODEL=all-mt798x）"
+        fi
 
         # 逐版本编译并缓存到各自临时目录
         for version in "${SUPPORTED_VERSIONS[@]}"; do
@@ -363,6 +393,13 @@ jobs:
           if [ -z "$models" ]; then
             echo "机型列表为空（$version），跳过"
             continue
+          fi
+          if [ -n "$SOC_FILTER" ]; then
+            models=$(echo "$models" | grep -E "^${SOC_FILTER}_" || true)
+            if [ -z "$models" ]; then
+              echo "平台 $SOC_FILTER 在 $version 版本无可用机型，跳过"
+              continue
+            fi
           fi
 
           echo "${version}版本可用机型："
