@@ -508,16 +508,20 @@ jobs:
         if [ -d "output_gpt" ]; then
           rename "s/(.*)\.(.*)/\$1_${TIMESTAMP}.\$2/" output_gpt/*
         fi
-        # 移动文件到指定目录
+        # 移动文件到指定目录（包含二进制、日志、GPT、机型列表）
         mkdir -p upload
         if [ -d "output" ]; then
-          mv output/* upload/
+          cp -r output/* upload/ || true
         fi
         if [ -d "output_gpt" ]; then
-          mv output_gpt/* upload/
+          cp -r output_gpt/* upload/ || true
         fi
-        if [ "${{ github.event.inputs.MODEL }}" = "all" ] && [ -d "model_lists" ]; then
+        if [ -d "model_lists" ]; then
           cp -r model_lists/* upload/ || true
+        fi
+        # 如果存在编译日志（output/build-*.log），确保被包含
+        if ls output/build-*.log >/dev/null 2>&1; then
+          cp -f output/build-*.log upload/ || true
         fi
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
