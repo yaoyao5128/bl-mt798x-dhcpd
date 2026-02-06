@@ -36,33 +36,27 @@
 #include <vsprintf.h>
 #include <version_string.h>
 #include <failsafe/fw_type.h>
-
-DECLARE_GLOBAL_DATA_PTR;
-
 #include "../board/mediatek/common/boot_helper.h"
+#include "fs.h"
 #ifdef CONFIG_MTD
 #include "../board/mediatek/common/mtd_helper.h"
 #endif
 #ifdef CONFIG_MTK_BOOTMENU_MMC
 #include "../board/mediatek/common/mmc_helper.h"
 #endif
-#include "fs.h"
+
+DECLARE_GLOBAL_DATA_PTR;
 
 static u32 upload_data_id;
 static const void *upload_data;
-
-/*
- * mtk_httpd exposes a global symbol named `upload_id`.
- * Avoid colliding with it by using a failsafe-local name.
- */
-static u32 fs_upload_id;
 static size_t upload_size;
 static bool upgrade_success;
 static failsafe_fw_t fw_type;
+
 #ifdef CONFIG_MEDIATEK_MULTI_MTD_LAYOUT
 static const char *mtd_layout_label;
 const char *get_mtd_layout_label(void);
-#define MTD_LAYOUTS_MAXLEN 128
+#define MTD_LAYOUTS_MAXLEN	128
 #endif
 
 int __weak failsafe_validate_image(const void *data, size_t size, failsafe_fw_t fw)
@@ -75,55 +69,44 @@ int __weak failsafe_write_image(const void *data, size_t size, failsafe_fw_t fw)
 	return -ENOSYS;
 }
 
-#ifdef CONFIG_MTK_BOOTMENU_MMC
-static bool failsafe_mmc_present(void)
+static int output_plain_file(struct httpd_response *response,
+			     const char *filename)
 {
-	struct mmc *mmc;
-	struct blk_desc *bd;
+	const struct fs_desc *file;
+	int ret = 0;
 
-	mmc = _mmc_get_dev(CONFIG_MTK_BOOTMENU_MMC_DEV_INDEX, 0, false);
-	bd = mmc ? mmc_get_blk_desc(mmc) : NULL;
-
-	return mmc && bd && bd->type != DEV_TYPE_UNKNOWN;
-}
-#endif
-
-static int output_plain_file(struct httpd_response *response, const char *path)
-{
-	const struct fs_desc *fd;
-
-	fd = fs_find_file(path);
-	if (!fd)
-		return -ENOENT;
+	file = fs_find_file(filename);
 
 	response->status = HTTP_RESP_STD;
-	response->data = fd->data;
-	response->size = fd->size;
+
+	if (file) {
+		response->data = file->data;
+		response->size = file->size;
+	} else {
+		response->data = "Error: file not found";
+		response->size = strlen(response->data);
+		ret = 1;
+	}
+
 	response->info.code = 200;
 	response->info.connection_close = 1;
 	response->info.content_type = "text/html";
 
-	return 0;
-}
-
-static void index_handler(enum httpd_uri_handler_status status,
-			  struct httpd_request *request,
-			  struct httpd_response *response)
-{
-	if (status == HTTP_CB_NEW)
-		output_plain_file(response, "index.html");
+	return ret;
 }
 
 static void version_handler(enum httpd_uri_handler_status status,
-			    struct httpd_request *request,
-			    struct httpd_response *response)
+	struct httpd_request *request,
+	struct httpd_response *response)
 {
 	if (status != HTTP_CB_NEW)
 		return;
 
 	response->status = HTTP_RESP_STD;
+
 	response->data = version_string;
 	response->size = strlen(response->data);
+
 	response->info.code = 200;
 	response->info.connection_close = 1;
 	response->info.content_type = "text/plain";
@@ -1593,6 +1576,26 @@ oom:
 
 #endif /* CONFIG_WEBUI_FAILSAFE_BACKUP */
 
+#ifdef CONFIG_MTK_BOOTMENU_MMC
+static bool failsafe_mmc_present(void)
+{
+	struct mmc *mmc;
+	struct blk_desc *bd;
+
+	mmc = _mmc_get_dev(CONFIG_MTK_BOOTMENU_MMC_DEV_INDEX, 0, false);
+	bd = mmc ? mmc_get_blk_desc(mmc) : NULL;
+
+	return mmc && bd && bd->type != DEV_TYPE_UNKNOWN;
+}
+#endif
+
+static void index_handler(enum httpd_uri_handler_status status,
+			  struct httpd_request *request,
+			  struct httpd_response *response)
+{
+	if (status == HTTP_CB_NEW)
+		output_plain_file(response, "index.html");
+}
 
 static void upload_handler(enum httpd_uri_handler_status status,
 			  struct httpd_request *request,
@@ -1611,12 +1614,6 @@ static void upload_handler(enum httpd_uri_handler_status status,
 
 	if (status != HTTP_CB_NEW)
 		return;
-
-	/* new upload session identifier */
-	fs_upload_id = rand();
-#ifdef CONFIG_MEDIATEK_MULTI_MTD_LAYOUT
-	mtd_layout_label = NULL;
-#endif
 
 	response->status = HTTP_RESP_STD;
 	response->info.code = 200;
@@ -1682,7 +1679,7 @@ fail:
 	return;
 
 done:
-	upload_data_id = fs_upload_id;
+	upload_data_id = upload_id;
 	upload_data = fw->data;
 	upload_size = fw->size;
 
@@ -1761,7 +1758,7 @@ static void result_handler(enum httpd_uri_handler_status status,
 			return;
 		}
 
-		if (upload_data_id == fs_upload_id) {
+		if (upload_data_id == upload_id) {
 #ifdef CONFIG_MEDIATEK_MULTI_MTD_LAYOUT
 			if (mtd_layout_label &&
 					strcmp(get_mtd_layout_label(), mtd_layout_label) != 0) {
@@ -1846,7 +1843,6 @@ static void html_handler(enum httpd_uri_handler_status status,
 }
 
 #ifdef CONFIG_MEDIATEK_MULTI_MTD_LAYOUT
-
 static const char *get_mtdlayout_str(void)
 {
 	static char mtd_layout_str[MTD_LAYOUTS_MAXLEN];
@@ -1907,26 +1903,6 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/booting.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/cgi-bin/luci", &index_handler, NULL);
 	httpd_register_uri_handler(inst, "/cgi-bin/luci/", &index_handler, NULL);
-	httpd_register_uri_handler(inst, "/sysinfo", &sysinfo_handler, NULL);
-
-#ifdef CONFIG_WEBUI_FAILSAFE_BACKUP
-	httpd_register_uri_handler(inst, "/backup.html", &html_handler, NULL);
-	httpd_register_uri_handler(inst, "/backup/info", &backupinfo_handler, NULL);
-	httpd_register_uri_handler(inst, "/backup/main", &backup_handler, NULL);
-#endif
-
-#ifdef CONFIG_WEBUI_FAILSAFE_ENV
-	httpd_register_uri_handler(inst, "/env.html", &html_handler, NULL);
-	httpd_register_uri_handler(inst, "/env/list", &env_list_handler, NULL);
-	httpd_register_uri_handler(inst, "/env/set", &env_set_handler, NULL);
-	httpd_register_uri_handler(inst, "/env/unset", &env_unset_handler, NULL);
-	httpd_register_uri_handler(inst, "/env/reset", &env_reset_handler, NULL);
-	httpd_register_uri_handler(inst, "/env/restore", &env_restore_handler, NULL);
-#endif
-
-#ifdef CONFIG_WEBUI_FAILSAFE_FACTORY
-	httpd_register_uri_handler(inst, "/factory.html", &html_handler, NULL);
-#endif
 	httpd_register_uri_handler(inst, "/fail.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/flashing.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/getmtdlayout", &mtd_layout_handler, NULL);
@@ -1935,10 +1911,35 @@ int start_web_failsafe(void)
 		httpd_register_uri_handler(inst, "/gpt.html", &html_handler, NULL);
 #endif
 	httpd_register_uri_handler(inst, "/initramfs.html", &html_handler, NULL);
+	httpd_register_uri_handler(inst, "/main.js", &js_handler, NULL);
+	httpd_register_uri_handler(inst, "/result", &result_handler, NULL);
+	httpd_register_uri_handler(inst, "/style.css", &style_handler, NULL);
+	httpd_register_uri_handler(inst, "/uboot.html", &html_handler, NULL);
+	httpd_register_uri_handler(inst, "/upload", &upload_handler, NULL);
+	httpd_register_uri_handler(inst, "/version", &version_handler, NULL);
+	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
+	httpd_register_uri_handler(inst, "/reboot", &reboot_handler, NULL);
+	httpd_register_uri_handler(inst, "/reboot.html", &html_handler, NULL);
+	httpd_register_uri_handler(inst, "/sysinfo", &sysinfo_handler, NULL);
+#ifdef CONFIG_WEBUI_FAILSAFE_BACKUP
+	httpd_register_uri_handler(inst, "/backup.html", &html_handler, NULL);
+	httpd_register_uri_handler(inst, "/backup/info", &backupinfo_handler, NULL);
+	httpd_register_uri_handler(inst, "/backup/main", &backup_handler, NULL);
+#endif
+#ifdef CONFIG_WEBUI_FAILSAFE_ENV
+	httpd_register_uri_handler(inst, "/env.html", &html_handler, NULL);
+	httpd_register_uri_handler(inst, "/env/list", &env_list_handler, NULL);
+	httpd_register_uri_handler(inst, "/env/set", &env_set_handler, NULL);
+	httpd_register_uri_handler(inst, "/env/unset", &env_unset_handler, NULL);
+	httpd_register_uri_handler(inst, "/env/reset", &env_reset_handler, NULL);
+	httpd_register_uri_handler(inst, "/env/restore", &env_restore_handler, NULL);
+#endif
+#ifdef CONFIG_WEBUI_FAILSAFE_FACTORY
+	httpd_register_uri_handler(inst, "/factory.html", &html_handler, NULL);
+#endif
 #ifdef CONFIG_WEBUI_FAILSAFE_CONSOLE
 	httpd_register_uri_handler(inst, "/console.html", &html_handler, NULL);
 #endif
-
 #ifdef CONFIG_WEBUI_FAILSAFE_CONSOLE
 	/* Enable recording early so we can stream output to the browser */
 	failsafe_webconsole_ensure_recording();
@@ -1947,16 +1948,6 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/console/exec", &webconsole_exec_handler, NULL);
 	httpd_register_uri_handler(inst, "/console/clear", &webconsole_clear_handler, NULL);
 #endif
-
-	httpd_register_uri_handler(inst, "/main.js", &js_handler, NULL);
-	httpd_register_uri_handler(inst, "/reboot", &reboot_handler, NULL);
-	httpd_register_uri_handler(inst, "/reboot.html", &html_handler, NULL);
-	httpd_register_uri_handler(inst, "/result", &result_handler, NULL);
-	httpd_register_uri_handler(inst, "/style.css", &style_handler, NULL);
-	httpd_register_uri_handler(inst, "/uboot.html", &html_handler, NULL);
-	httpd_register_uri_handler(inst, "/upload", &upload_handler, NULL);
-	httpd_register_uri_handler(inst, "/version", &version_handler, NULL);
-	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
 
 	if (IS_ENABLED(CONFIG_MTK_DHCPD))
 		mtk_dhcpd_start();
