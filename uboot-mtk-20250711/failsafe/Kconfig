@@ -25,10 +25,17 @@ config WEBUI_FAILSAFE_UI_OLD
 
 endchoice
 
-config WEBUI_FAILSAFE_FACTORY
-	bool "Enable Factory upgrade"
+config WEBUI_FAILSAFE_ADVANCED
+	bool "Enable advanced features"
 	default y
 	depends on WEBUI_FAILSAFE
+	help
+	  Enable advanced features in the failsafe Web UI.
+
+config WEBUI_FAILSAFE_FACTORY
+	bool "Enable Factory upgrade (DANGEROUS)"
+	default y
+	depends on WEBUI_FAILSAFE_ADVANCED
 	help
 	  Enable Factory partition upgrade in the failsafe Web UI.
 	  This is an advanced feature and should be used with care.
@@ -36,7 +43,7 @@ config WEBUI_FAILSAFE_FACTORY
 config WEBUI_FAILSAFE_BACKUP
 	bool "Enable backup download"
 	default y
-	depends on WEBUI_FAILSAFE
+	depends on WEBUI_FAILSAFE_ADVANCED
 	help
 	  Enable backup download functionality in the failsafe Web UI.
 
@@ -51,9 +58,9 @@ config WEBUI_FAILSAFE_FLASH
 	  WARNING: This is a dangerous feature and may brick the device.
 
 config WEBUI_FAILSAFE_ENV
-	bool "Enable U-Boot environment management"
+	bool "Enable U-Boot environment management (DANGEROUS)"
 	default y
-	depends on WEBUI_FAILSAFE
+	depends on WEBUI_FAILSAFE_ADVANCED
 	help
 	  Enable environment variable management (list/add/delete/reset/restore)
 	  in the failsafe Web UI.
@@ -61,6 +68,7 @@ config WEBUI_FAILSAFE_ENV
 config WEBUI_FAILSAFE_CONSOLE
 	bool "Enable failsafe Web console (DANGEROUS)"
 	select CONSOLE_RECORD
+	depends on WEBUI_FAILSAFE_ADVANCED
 	default y
 	help
 	  Enable a simple web console (web terminal) in the failsafe Web UI.
