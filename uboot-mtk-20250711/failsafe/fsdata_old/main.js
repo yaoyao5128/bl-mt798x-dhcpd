@@ -529,6 +529,34 @@ function parseUserLenOld(n) {
     return r === "" ? i : r === "k" || r === "kb" || r === "kib" ? i * 1024 : null
 }
 
+function flashExtractBytesOld(text) {
+    var bytes = [];
+    if (!text) return bytes;
+    var m = text.match(/[0-9a-fA-F]{2}/g);
+    if (!m) return bytes;
+    for (var i = 0; i < m.length; i++) bytes.push(parseInt(m[i], 16));
+    return bytes;
+}
+
+function flashFormatHexLinesOld(bytes) {
+    var out = [];
+    for (var i = 0; i < bytes.length; i++) {
+        if (i && i % 16 === 0) out.push("\n");
+        out.push((bytes[i] < 16 ? "0" : "") + bytes[i].toString(16).toUpperCase());
+        if (i % 16 !== 15 && i !== bytes.length - 1) out.push(" ");
+    }
+    return out.join("");
+}
+
+function flashFormatDataOld() {
+    var data = document.getElementById('flash_data');
+    if (!data) return;
+    if (!confirm('Format hex data now? This will reflow and trim invalid characters.')) return;
+    var bytes = flashExtractBytesOld(data.value || "");
+    data.value = flashFormatHexLinesOld(bytes);
+    setFlashStatusOld('Formatted.');
+}
+
 function flashFindLastBeforeOld(str, sub, limit) {
     var idx = -1, cur = str.indexOf(sub);
     while (cur !== -1 && cur < limit) {
@@ -721,20 +749,96 @@ async function flashRestoreOld() {
     if (!backup || !backup.files || !backup.files.length) { alert('Please select a backup file'); return; }
     if (!confirm('Restore backup to flash now?')) return;
     try {
-        setFlashStatusOld('Restoring...');
-        var fd = new FormData();
-        fd.append('op', 'restore');
-        fd.append('backup', backup.files[0]);
-        target && target.value && fd.append('target', target.value);
-        start && start.value && fd.append('start', start.value);
-        end && end.value && fd.append('end', end.value);
-        fd.append('storage', 'auto');
-        var r = await fetch('/flash/restore', { method: 'POST', body: fd });
-        var txt = await r.text();
-        if (!r.ok) { setFlashStatusOld('HTTP error: ' + r.status + (txt ? ': ' + txt : '')); return; }
-        var j;
-        try { j = JSON.parse(txt); } catch (e) { setFlashStatusOld('Parse error'); return; }
-        if (!j || !j.ok) { setFlashStatusOld('Error: ' + (j && j.error ? j.error : '')); return; }
+        var file = backup.files[0];
+        var totalSize = file ? file.size : 0;
+        var baseStart = start ? parseUserLenOld(start.value) : null;
+        var baseEnd = end ? parseUserLenOld(end.value) : null;
+
+        if ((baseStart === null || baseEnd === null) && file && file.name) {
+            var parsed = flashParseBackupFilenameOld(file.name);
+            if (parsed) {
+                baseStart = parsed.start;
+                baseEnd = parsed.end;
+                if (target && !target.value && parsed.storage && parsed.target)
+                    flashSelectTargetOld(parsed.storage + ':' + parsed.target);
+                start && (start.value = '0x' + baseStart.toString(16));
+                end && (end.value = '0x' + baseEnd.toString(16));
+            }
+        }
+
+        if (target && !target.value) { alert('Please select a target'); return; }
+        if (baseStart === null || baseEnd === null || baseEnd <= baseStart) {
+            setFlashStatusOld('Please input valid start/end');
+            return;
+        }
+        if ((baseEnd - baseStart) !== totalSize) {
+            setFlashStatusOld('Please input valid start/end');
+            return;
+        }
+
+        var chunkSize = 4 * 1024 * 1024;
+        var useChunked = totalSize > chunkSize;
+
+        function toHex(n) { return '0x' + n.toString(16); }
+
+        function sendChunk(blob, chunkOffset, chunkEnd, totalSize, baseStart) {
+            return new Promise(function (resolve, reject) {
+                var fd = new FormData();
+                fd.append('op', 'restore');
+                fd.append('backup', blob, 'restore_chunk.bin');
+                target && target.value && fd.append('target', target.value);
+                fd.append('start', toHex(baseStart + chunkOffset));
+                fd.append('end', toHex(baseStart + chunkEnd));
+                fd.append('storage', 'auto');
+
+                var xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = function (evt) {
+                    if (!evt || !evt.lengthComputable) return;
+                    var pct = Math.floor((chunkOffset + evt.loaded) / totalSize * 100);
+                    setFlashStatusOld('Uploading... ' + pct + '%');
+                };
+                xhr.upload.onload = function () {
+                    setFlashStatusOld('Restoring...');
+                };
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState !== 4) return;
+                    if (xhr.status !== 200) {
+                        setFlashStatusOld('HTTP error: ' + xhr.status + (xhr.responseText ? ': ' + xhr.responseText : ''));
+                        reject(new Error('http'));
+                        return;
+                    }
+                    var j;
+                    try { j = JSON.parse(xhr.responseText); } catch (e) {
+                        setFlashStatusOld('Parse error');
+                        reject(e);
+                        return;
+                    }
+                    if (!j || !j.ok) {
+                        setFlashStatusOld('Error: ' + (j && j.error ? j.error : ''));
+                        reject(new Error('bad'));
+                        return;
+                    }
+                    resolve();
+                };
+                xhr.open('POST', '/flash/restore');
+                xhr.send(fd);
+            });
+        }
+
+        setFlashStatusOld('Uploading... 0%');
+
+        if (!useChunked) {
+            await sendChunk(file, 0, totalSize, totalSize, baseStart);
+        } else {
+            var offset = 0;
+            while (offset < totalSize) {
+                var next = Math.min(offset + chunkSize, totalSize);
+                var blob = file.slice(offset, next);
+                await sendChunk(blob, offset, next, totalSize, baseStart);
+                offset = next;
+            }
+        }
+
         setFlashStatusOld('Done.');
     } catch (e) {
         setFlashStatusOld('Error: ' + (e && e.message ? e.message : String(e)));

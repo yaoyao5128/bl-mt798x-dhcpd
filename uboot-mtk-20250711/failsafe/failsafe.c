@@ -1844,6 +1844,32 @@ out:
 	free(blkbuf);
 	return ret;
 }
+
+static int flash_mtd_restore_range(struct mtd_info *mtd, u64 start,
+	const u8 *data, size_t len)
+{
+	u64 erased = 0;
+	size_t written = 0;
+	int ret;
+
+	if (!mtd || !data || !len)
+		return -EINVAL;
+
+	ret = mtd_erase_skip_bad(mtd, start, len, mtd->size - start,
+		&erased, NULL, mtd->name, true);
+	if (ret)
+		return ret;
+
+	ret = mtd_write_skip_bad(mtd, start, len, mtd->size - start,
+		&written, data, true);
+	if (ret)
+		return ret;
+
+	if (written != len)
+		return -EIO;
+
+	return 0;
+}
 #endif
 
 static const char *flash_find_last_before(const char *s, const char *needle,
@@ -2247,8 +2273,7 @@ static void flash_handler(enum httpd_uri_handler_status status,
 
 		if (tgt.src == BACKUP_SRC_MTD) {
 #ifdef CONFIG_MTD
-			ret = mtd_write_skip_bad(tgt.mtd, start, len,
-				tgt.mtd->size - start, NULL, fw->data, true);
+			ret = flash_mtd_restore_range(tgt.mtd, start, fw->data, len);
 #else
 			ret = -ENODEV;
 #endif
