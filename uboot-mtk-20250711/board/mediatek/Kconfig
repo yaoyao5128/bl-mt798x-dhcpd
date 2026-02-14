@@ -256,6 +256,21 @@ config MEDIATEK_MULTI_MTD_LAYOUT
 	depends on !MTK_DUAL_BOOT
 	default n
 
+config MTD_VERIFY_FDT
+	bool "Enable mtd device boot Linux FDT verification"
+	depends on MTD
+	default y
+
+config MTD_VERIFY_FDT_WARN_ONLY
+	bool "Warn only if FDT verification fails"
+	depends on MTD_VERIFY_FDT
+	default y
+	help
+	  When enabled, a failed FDT verification will only emit a warning
+	  and the boot will continue. This is intended for compatibility
+	  with legacy images or devices that do not yet match the expected
+	  FDT rules.
+
 menuconfig MTK_SECURE_BOOT
 	bool "Enable secure boot framework"
 	select FIT_SIGNATURE

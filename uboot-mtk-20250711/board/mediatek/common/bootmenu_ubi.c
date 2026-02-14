@@ -179,12 +179,18 @@ void board_bootmenu_entries(const struct bootmenu_entry **menu, u32 *count)
 
 void default_boot_set_defaults(void *fdt)
 {
+#ifdef CONFIG_MTD_VERIFY_FDT
 	int ret;
 
 	ret = mtd_verify_linux_fdt(fdt);
-	if (ret)
+	if (ret) {
+#ifdef CONFIG_MTD_VERIFY_FDT_WARN_ONLY
+		printf("\nWarning: FDT verification failed, continue booting as requested\n\n");
+#else
 		hang();
-
+#endif
+	}
+#endif
 	mtd_boot_set_defaults(fdt);
 }
 
