@@ -182,12 +182,22 @@ static void version_handler(enum httpd_uri_handler_status status,
 	struct httpd_request *request,
 	struct httpd_response *response)
 {
+	const char *build_variant;
+	static char version_buf[512];
+
 	if (status != HTTP_CB_NEW)
 		return;
 
 	response->status = HTTP_RESP_STD;
 
-	response->data = version_string;
+	build_variant = CONFIG_WEBUI_FAILSAFE_BUILD_VARIANT;
+	if (build_variant && build_variant[0]) {
+		snprintf(version_buf, sizeof(version_buf), "%s %s",
+			 version_string, build_variant);
+		response->data = version_buf;
+	} else {
+		response->data = version_string;
+	}
 	response->size = strlen(response->data);
 
 	response->info.code = 200;
