@@ -116,8 +116,8 @@ UBOOT_CFG_MULTILAYOUT="${UBOUBOOT_CFG_MULTILAYOUT:-$UBOOT_CFG_MULTILAYOUT_SOURCE
 
 # ATF Config Path
 ATF_CFG_PATH_DEFAULT="$ATF_DIR/$CONFIGS_DIR_DEFAULT/$ATF_CFG"
-# Currently ATF doesn't have nmbm disabled configs, so use the same one as default build
-# If you wanna use nmbm disabled firmware, flash the preloader by OpenWrt/ImmortalWrt to BL2
+ATF_CFG_PATH_FIT="$ATF_DIR/$CONFIGS_DIR_FIT/$ATF_CFG"
+ATF_CFG_PATH_NONMBM="$ATF_DIR/$CONFIGS_DIR_NONMBM/$ATF_CFG"
 
 # U-Boot Config Path
 UBOOT_CFG_PATH_DEFAULT="$UBOOT_DIR/$CONFIGS_DIR_DEFAULT/$UBOOT_CFG"
@@ -146,7 +146,7 @@ if [ "$VARIANT" = "default" ] || [ "$VARIANT" = "DEFAULT" ]; then
 	fi
 elif [ "$VARIANT" = "ubootmod" ] || [ "$VARIANT" = "UBOOTMOD" ]; then
 	fixedparts=0
-	ATF_CFG_PATH=$ATF_CFG_PATH_DEFAULT
+	ATF_CFG_PATH=$ATF_CFG_PATH_FIT
 	UBOOT_CFG_PATH=$UBOOT_CFG_PATH_FIT
 	if [ "$multilayout" = "1" ]; then
 		echo "Warning: No multi layout with ubootmod variant, will disabled it.(Y/n):"
@@ -160,7 +160,7 @@ elif [ "$VARIANT" = "ubootmod" ] || [ "$VARIANT" = "UBOOTMOD" ]; then
 		fi
 	fi
 elif [ "$VARIANT" = "nonmbm" ] || [ "$VARIANT" = "NONMBM" ]; then
-	ATF_CFG_PATH=$ATF_CFG_PATH_DEFAULT
+	ATF_CFG_PATH=$ATF_CFG_PATH_NONMBM
 	UBOOT_CFG_PATH=$UBOOT_CFG_PATH_NONMBM
 	if [ "$multilayout" = "1" ]; then
 		UBOOT_CFG_PATH=$UBOOT_CFG_PATH_NONMBM_MULTILAYOUT
@@ -267,6 +267,12 @@ fi
 if grep -Eq "(^_|CONFIG_TARGET_ALL_NO_SEC_BOOT=y)" "$ATF_CFG_PATH"; then
 	if [ -f "$ATF_DIR/build/${SOC}/release/bl2.img" ]; then
 		BL2_NAME="${SOC}_${BOARD}_${VERSION}-bl2"
+		if [ "$VARIANT" = "ubootmod" ] || [ "$VARIANT" = "UBOOTMOD" ]; then
+			BL2_NAME="${BL2_NAME}-fit"
+		fi
+		if [ "$VARIANT" = "nonmbm" ] || [ "$VARIANT" = "NONMBM" ]; then
+			BL2_NAME="${BL2_NAME}-nonmbm"
+		fi
 		cp -f "$ATF_DIR/build/${SOC}/release/bl2.img" "output/${BL2_NAME}.bin"
 		echo "$BL2_NAME build done"
 	else
