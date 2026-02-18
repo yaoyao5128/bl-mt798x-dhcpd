@@ -42,5 +42,13 @@ int board_nmbm_init(void)
 
 	add_mtd_device(upper);
 
+	/*
+	 * The first mtd_probe_devices() call above may have parsed mtdparts
+	 * before the NMBM upper MTD (nmbm0) exists. Probe again after
+	 * registering the upper device so partitions defined for nmbm0 are
+	 * created immediately.
+	 */
+	mtd_probe_devices();
+
 	return 0;
 }
