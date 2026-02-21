@@ -675,6 +675,18 @@ ul {
     text-align: left;
 }
 
+.md5-status {
+    font-weight: 700;
+}
+
+.md5-status.md5-ok {
+    color: #16a34a;
+}
+
+.md5-status.md5-bad {
+    color: var(--danger);
+}
+
 #filename {
     text-align: center;
     overflow-wrap: anywhere;

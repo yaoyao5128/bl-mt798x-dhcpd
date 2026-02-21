@@ -780,8 +780,8 @@ function upload(n) {
         url: "/upload",
         data: r,
         done: function (n) {
-            var i, r, u, f, e, l;
-            n == "fail" ? location = "/fail.html" : (i = n.split(" "), l = document.getElementById("filename"), l && a && (l.style.display = "block", l.innerHTML = "<span class=\"filename-label\">" + t("label.file") + "</span><span class=\"filename-value\">" + a + "</span>"), r = document.getElementById("size"), r && (r.style.display = "block", r.innerHTML = t("label.size") + i[0]), u = document.getElementById("md5"), u && (u.style.display = "block", u.innerHTML = t("label.md5") + i[1]), f = document.getElementById("mtd"), f && i[2] && (f.style.display = "block", f.innerHTML = t("label.mtd") + i[2]), e = document.getElementById("upgrade"), e && (e.style.display = "block"))
+            var i, r, u, f, e, l, md5InName, md5Hint, md5Ok, md5Match, md5Class;
+            n == "fail" ? location = "/fail.html" : (i = n.split(" "), l = document.getElementById("filename"), l && a && (l.style.display = "block", l.innerHTML = "<span class=\"filename-label\">" + t("label.file") + "</span><span class=\"filename-value\">" + a + "</span>"), r = document.getElementById("size"), r && (r.style.display = "block", r.innerHTML = t("label.size") + i[0]), u = document.getElementById("md5"), md5Match = a ? /(?:^|[._-])md5-([0-9a-fA-F]{32})(?:$|[._-])/.exec(a) : null, md5InName = md5Match && md5Match[1] ? md5Match[1] : "", u && (u.style.display = "block", md5Ok = i[1] && md5InName && String(i[1]).toLowerCase() === String(md5InName).toLowerCase(), md5Hint = md5InName ? (md5Ok ? t("md5.match") : t("md5.mismatch")) : "", md5Class = md5InName ? (md5Ok ? "md5-ok" : "md5-bad") : "", u.innerHTML = t("label.md5") + i[1] + (md5Hint ? " <span class=\"md5-status " + md5Class + "\">" + md5Hint + "</span>" : "")), f = document.getElementById("mtd"), f && i[2] && (f.style.display = "block", f.innerHTML = t("label.mtd") + i[2]), e = document.getElementById("upgrade"), e && (e.style.display = "block"))
         },
         progress: function (n) {
             if (n.total) {
