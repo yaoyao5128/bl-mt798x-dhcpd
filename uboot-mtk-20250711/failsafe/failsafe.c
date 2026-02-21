@@ -565,6 +565,16 @@ static void upload_handler(enum httpd_uri_handler_status status,
 		goto done;
 	}
 
+#ifdef CONFIG_WEBUI_FAILSAFE_SIMG
+	fw = httpd_request_find_value(request, "simg");
+	if (fw) {
+		fw_type = FW_TYPE_SIMG;
+		if (failsafe_validate_image(fw->data, fw->size, fw_type))
+			goto fail;
+		goto done;
+	}
+#endif
+
 #ifdef CONFIG_WEBUI_FAILSAFE_FACTORY
 	fw = httpd_request_find_value(request, "factory");
 	if (fw) {
@@ -861,6 +871,9 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/env/unset", &env_unset_handler, NULL);
 	httpd_register_uri_handler(inst, "/env/reset", &env_reset_handler, NULL);
 	httpd_register_uri_handler(inst, "/env/restore", &env_restore_handler, NULL);
+#endif
+#ifdef CONFIG_WEBUI_FAILSAFE_SIMG
+	httpd_register_uri_handler(inst, "/simg.html", &html_handler, NULL);
 #endif
 #ifdef CONFIG_WEBUI_FAILSAFE_FACTORY
 	httpd_register_uri_handler(inst, "/factory.html", &html_handler, NULL);

@@ -65,6 +65,10 @@ obj-y += reboot.o
 FILE_reboot.o := reboot.html
 FSPATH_reboot.o := reboot.html
 
+obj-$(CONFIG_WEBUI_FAILSAFE_SIMG) += simg.o
+FILE_simg.o := simg.html
+FSPATH_simg.o := simg.html
+
 obj-y += style.o
 FILE_style.o := style.css
 FSPATH_style.o := style.css

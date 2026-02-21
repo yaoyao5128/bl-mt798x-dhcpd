@@ -135,12 +135,12 @@ function ensureSidebar() {
         return u.className = "nav-link", u.href = n, u.setAttribute("data-nav-id", r), s = document.createElement("span"), s.className = "dot", u.appendChild(s), o = document.createElement("span"), o.setAttribute("data-i18n", i), o.textContent = t(i), u.appendChild(o), e = n, e !== "/" && e.charAt(0) !== "/" && (e = "/" + e), h = e === f || e === "/" && (f === "/" || f === "/index.html"), h && u.classList.add("active"), u
     }
     var i = document.getElementById("sidebar"),
-        f, k, s, h, c, d, r, l, g, n, a, v, y, p, e, w, u, b, gptLink;
+        f, k, s, h, c, d, r, l, g, n, a, v, y, p, e, w, u, b, gptLink, simgLink;
     i && i.getAttribute("data-rendered") !== "1" && (i.setAttribute("data-rendered", "1"), f = location && location.pathname ? location.pathname : "", f === "" && (f = "/"), i.innerHTML = "", k = document.createElement("div"), k.className = "sidebar-brand", s = document.createElement("div"), s.className = "title", s.setAttribute("data-i18n", "app.name"), s.textContent = t("app.name"), k.appendChild(s), i.appendChild(k), h = document.createElement("div"), h.className = "sidebar-controls", c = document.createElement("div"), c.className = "control-row", d = document.createElement("div"), d.setAttribute("data-i18n", "control.language"), d.textContent = t("control.language"), c.appendChild(d), r = document.createElement("select"), r.id = "lang_select", r.innerHTML = '<option value="en">English<\/option><option value="zh-cn">简体中文<\/option>', r.value = APP_STATE.lang, r.onchange = function () {
         setLang(this.value)
     }, c.appendChild(r), h.appendChild(c), l = document.createElement("div"), l.className = "control-row", g = document.createElement("div"), g.setAttribute("data-i18n", "control.theme"), g.textContent = t("control.theme"), l.appendChild(g), n = document.createElement("select"), n.id = "theme_select", a = document.createElement("option"), a.value = "auto", a.setAttribute("data-i18n", "theme.auto"), a.textContent = t("theme.auto"), v = document.createElement("option"), v.value = "light", v.setAttribute("data-i18n", "theme.light"), v.textContent = t("theme.light"), y = document.createElement("option"), y.value = "dark", y.setAttribute("data-i18n", "theme.dark"), y.textContent = t("theme.dark"), n.appendChild(a), n.appendChild(v), n.appendChild(y), n.value = APP_STATE.theme, n.onchange = function () {
         setTheme(this.value)
-    }, l.appendChild(n), h.appendChild(l), i.appendChild(h), p = document.createElement("div"), p.className = "nav", e = document.createElement("div"), e.className = "nav-section", w = document.createElement("div"), w.className = "nav-section-title", w.setAttribute("data-i18n", "nav.basic"), w.textContent = t("nav.basic"), e.appendChild(w), e.appendChild(o("/", "nav.firmware", "firmware")), e.appendChild(o("/uboot.html", "nav.uboot", "uboot")), p.appendChild(e), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.advanced"), b.textContent = t("nav.advanced"), u.appendChild(b), u.appendChild(o("/bl2.html", "nav.bl2", "bl2")), gptLink = o("/gpt.html", "nav.gpt", "gpt"), gptLink.style.display = "none", u.appendChild(gptLink), u.appendChild(o("/factory.html", "nav.factory", "factory")), u.appendChild(o("/initramfs.html", "nav.initramfs", "initramfs")), p.appendChild(u), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.system"), b.textContent = t("nav.system"), u.appendChild(b), u.appendChild(o("/backup.html", "nav.backup", "backup")), u.appendChild(o("/flash.html", "nav.flash", "flash")), u.appendChild(o("/env.html", "nav.env", "env")), u.appendChild(o("/console.html", "nav.console", "console")), r = o("/reboot.html", "nav.reboot", "reboot"), u.appendChild(r), p.appendChild(u), i.appendChild(p), applyI18n(i), updateGptNavVisibility())
+    }, l.appendChild(n), h.appendChild(l), i.appendChild(h), p = document.createElement("div"), p.className = "nav", e = document.createElement("div"), e.className = "nav-section", w = document.createElement("div"), w.className = "nav-section-title", w.setAttribute("data-i18n", "nav.basic"), w.textContent = t("nav.basic"), e.appendChild(w), e.appendChild(o("/", "nav.firmware", "firmware")), e.appendChild(o("/uboot.html", "nav.uboot", "uboot")), p.appendChild(e), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.advanced"), b.textContent = t("nav.advanced"), u.appendChild(b), u.appendChild(o("/bl2.html", "nav.bl2", "bl2")), gptLink = o("/gpt.html", "nav.gpt", "gpt"), gptLink.style.display = "none", u.appendChild(gptLink), simgLink = o("/simg.html", "nav.simg", "simg"), simgLink.style.display = "none", u.appendChild(simgLink), u.appendChild(o("/factory.html", "nav.factory", "factory")), u.appendChild(o("/initramfs.html", "nav.initramfs", "initramfs")), p.appendChild(u), u = document.createElement("div"), u.className = "nav-section", b = document.createElement("div"), b.className = "nav-section-title", b.setAttribute("data-i18n", "nav.system"), b.textContent = t("nav.system"), u.appendChild(b), u.appendChild(o("/backup.html", "nav.backup", "backup")), u.appendChild(o("/flash.html", "nav.flash", "flash")), u.appendChild(o("/env.html", "nav.env", "env")), u.appendChild(o("/console.html", "nav.console", "console")), r = o("/reboot.html", "nav.reboot", "reboot"), u.appendChild(r), p.appendChild(u), i.appendChild(p), applyI18n(i), updateGptNavVisibility(), updateSimgNavVisibility())
 }
 
 function ajax(n) {
@@ -489,6 +489,10 @@ function appInit(n) {
     n === "flash" && flashInit();
     n === "console" && consoleInit();
     n === "env" && envInit()
+
+    const Yuzhii_VERSION = 'UBOOT-MTK-20250711';
+    const Yuzhii_LINK = 'https://github.com/Yuzhii0718/';
+    console.log('\n%c Yuzhii0718 ' + Yuzhii_VERSION + ' %c ' + Yuzhii_LINK + ' ', 'color: #fadfa3; background: #030307; padding:5px 0;', 'background: #fadfa3; padding:5px 0;');
 }
 
 function updateGptNavVisibility() {
@@ -502,6 +506,33 @@ function updateGptNavVisibility() {
         return;
     }
     el.style.display = bi.mmc.present === false ? "none" : "";
+    console.warn("GPT nav visibility updated based on MMC presence:", bi.mmc.present);
+}
+
+function updateSimgNavVisibility() {
+    // Hide Single Image entry unless the page is actually served.
+    var el = document.querySelector("#sidebar [data-nav-id='simg']");
+    if (!el) return;
+    el.style.display = "none";
+
+    // Avoid repeated probes.
+    if (APP_STATE._simg_probe_done) return;
+    APP_STATE._simg_probe_done = true;
+
+    try {
+        fetch("/simg.html?_probe=1", { method: "GET", cache: "no-store" })
+            .then(function (r) {
+                if (r && r.ok) {
+                    el.style.display = "";
+                    return;
+                }
+                console.warn("SIMG probe HTTP status:", r ? r.status : "unknown");
+                console.info("If SIMG feature is not enabled, this warning is expected.");
+            })
+            .catch(function () { });
+    } catch (e) {
+        console.warn("Unexpected error during SIMG probe:", e);
+    }
 }
 
 function renderSysInfo() {

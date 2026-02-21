@@ -55,6 +55,14 @@ config WEBUI_FAILSAFE_FACTORY
 	  Enable Factory partition upgrade in the failsafe Web UI.
 	  This is an advanced feature and should be used with care.
 
+config WEBUI_FAILSAFE_SIMG
+	bool "Enable Single Image upgrade (DANGEROUS)"
+	default n
+	depends on WEBUI_FAILSAFE_ADVANCED
+	help
+	  Enable Single Image (ROM dump) upgrade in the failsafe Web UI.
+	  This is a very dangerous feature and may brick the device.
+
 config WEBUI_FAILSAFE_BACKUP
 	bool "Enable backup download"
 	default y

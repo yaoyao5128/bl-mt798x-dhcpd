@@ -32,6 +32,7 @@ You can configure the features you need.
     - [x] WEBUI_FAILSAFE_I18N
   - [ ] WEBUI_FAILSAFE_UI_OLD
 - [x] WEBUI_FAILSAFE_ADVANCED - Enable advanced features
+  - [ ] WEBUI_FAILSAFE_SIMG - Enable Single Image upgrade
   - [x] WEBUI_FAILSAFE_FACTORY - Enable factory (RF) update
   - [x] WEBUI_FAILSAFE_BACKUP - Enable backup download
   - [x] WEBUI_FAILSAFE_ENV - Enable environment manager
