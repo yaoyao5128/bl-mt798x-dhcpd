@@ -279,6 +279,8 @@ if [ -f "$ATF_DIR/build/${SOC}/release/fip.bin" ]; then
 	if [ "$multilayout" = "1" ]; then
 		FIP_NAME="${FIP_NAME}-multi-layout"
 	fi
+	FIP_MD5=$(md5sum "$ATF_DIR/build/${SOC}/release/fip.bin" | awk '{print $1}')
+	FIP_NAME="${FIP_NAME}_md5-${FIP_MD5}"
 	cp -f "$ATF_DIR/build/${SOC}/release/fip.bin" "output/${FIP_NAME}.bin"
 	echo "$FIP_NAME build done"
 else
@@ -294,6 +296,8 @@ if grep -Eq "(^_|CONFIG_TARGET_ALL_NO_SEC_BOOT=y)" "$ATF_CFG_PATH"; then
 		if [ "$VARIANT" = "nonmbm" ] || [ "$VARIANT" = "NONMBM" ]; then
 			BL2_NAME="${BL2_NAME}-nonmbm"
 		fi
+		BL2_MD5=$(md5sum "$ATF_DIR/build/${SOC}/release/bl2.img" | awk '{print $1}')
+		BL2_NAME="${BL2_NAME}_md5-${BL2_MD5}"
 		cp -f "$ATF_DIR/build/${SOC}/release/bl2.img" "output/${BL2_NAME}.bin"
 		echo "$BL2_NAME build done"
 	else
