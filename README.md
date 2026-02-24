@@ -107,6 +107,20 @@ SHOW=1 ./generate_gpt.sh
 
 Then it will display the GPT partition info of all GPT bin files in `mt798x_gpt_bin` directory, and output the results to `gpt_info.txt` in the `output_gpt` directory.
 
+### Draw GPT layout
+
+Install `Pillow` library:
+
+```bash
+pip3 install Pillow
+```
+
+Then run:
+
+```bash
+DRAW=1 ./generate_gpt.sh
+```
+
 ## Use Action to build
 
 - [x] Build FIP
