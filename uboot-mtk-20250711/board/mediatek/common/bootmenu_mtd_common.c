@@ -256,6 +256,12 @@ int generic_ubi_write_fip(void *priv, const struct data_part_entry *dpe,
 	return ubi_write_fip(NULL, PART_FIP_NAME, data, size);
 }
 
+int generic_ubi_write_factory(void *priv, const struct data_part_entry *dpe,
+			      const void *data, size_t size)
+{
+	return ubi_update_volume("factory", data, size);
+}
+
 #ifdef CONFIG_MTK_DUAL_FIP
 int generic_ubi_write_dual_fip(void *priv, const struct data_part_entry *dpe,
 			       const void *data, size_t size)

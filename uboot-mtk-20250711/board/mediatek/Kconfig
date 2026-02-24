@@ -233,6 +233,13 @@ config MTK_UBI_FIP_IN_MTD_PART
 	  When enabled, make sure mtdparts includes a "fip" partition and the
 	  FIP UBI volume is not required.
 
+config MTK_UBI_RF_IN_MTD_PART
+	bool "Store factory in a dedicated MTD partition"
+	depends on MTK_BOOTMENU_UBI
+	help
+	  Enable this option to store/upgrade factory in a raw MTD partition
+	  named "factory" instead of a UBI volume.
+
 config MTK_DUAL_BOOT_EMERG_IMAGE_UPGRADE
 	bool "Enable upgrading emergency image (Debug only)"
 	depends on MTK_DUAL_BOOT_EMERG_IMAGE

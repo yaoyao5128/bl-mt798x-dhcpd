@@ -84,7 +84,11 @@ static const struct data_part_entry mtd_parts[] = {
 		.name = "Factory",
 		.abbr = "factory",
 		.env_name = "bootfile.factory",
+#ifdef CONFIG_MTK_UBI_RF_IN_MTD_PART
 		.write = generic_mtd_write_factory,
+#else
+		.write = generic_ubi_write_factory,
+#endif
 	},
 	{
 		.name = "Single image",
